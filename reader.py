@@ -150,7 +150,10 @@ def custom_reader(file_list, input_size, mode):
             img = Image.open(image_path)
             if img.mode != 'RGB':
                 img = img.convert('RGB')
-            label = [int(train_parameters['label_dict'][c]) for c in parts[-1].replace('\t','').replace(' ','') if c != '´']
+            try:
+                label = [int(train_parameters['label_dict'][c]) for c in parts[-1].replace('\t','').replace(' ','') if c != '´']
+            except:
+                a = 1
             if len(label) == 0 or len(label) >= train_parameters['max_char_per_line']:
                 continue
             if mode == 'train':
@@ -162,12 +165,11 @@ def custom_reader(file_list, input_size, mode):
             # img *= 0.007843
             img = img[np.newaxis, ...]
             # print("{0} {1}".format(image_path, label))
-            yield img, len(label), label
+            yield img, label
     return reader
 
 if __name__ == '__main__':
     file_list = open(train_parameters['train_list']).readlines()
-    file_list = [x.replace('D:/','/mnt/d/') for x in file_list]
     temp_reader = custom_reader(file_list, train_parameters['input_size'], 'train')
     for data in temp_reader():
         print(data[1])

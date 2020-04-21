@@ -20,6 +20,20 @@ os.environ["FLAGS_fraction_of_gpu_memory_to_use"] = '0.82'
 logger = setup_logger('train.log')
 
 
+def acc_batch(preds, labels):
+    output = utils.greedy_decode(preds, blank=train_parameters["class_dim"])
+    total = 0
+    right = 0
+    for y, p in zip(labels, output):
+        y_s = "".join([train_parameters['r_label_dict'][c] for c in y])
+        p_s = "".join([train_parameters['r_label_dict'][c] for c in p])
+        # logger.info("pred:{} answer:{}".format(p_s, y_s))
+        if y_s == p_s:
+            right += 1
+        total += 1
+    return right, total
+
+
 def eval_model(crnn):
     logger.info("start to eval")
     file_list = open(train_parameters['eval_list']).readlines()
@@ -27,36 +41,23 @@ def eval_model(crnn):
     temp_reader = reader.custom_reader(file_list, train_parameters['input_size'], 'eval')
     eval_reader = paddle.batch(temp_reader, batch_size=train_parameters['eval_batch_size'])
 
+    all_acc = 0
+    all_num = 0
     for batch_id, data in enumerate(eval_reader()):
         dy_x_data = np.array([x[0] for x in data]).astype('float32')
-        image_length = np.array([x[1] for x in data]).astype('int64')
-        label_len = np.array([len(x[2]) for x in data])
-
-        y_data = [x[2] for x in data]
+        y_data = [x[1] for x in data]
 
         img = fluid.dygraph.to_variable(dy_x_data)
         out = crnn(img)
-        image_length = fluid.dygraph.to_variable(np.array(image_length).astype('int64'))
-        # logger.info("intput image length:{}".format(image_length))
-        # logger.info("in eval pred:{}".format(out))
-        # outputctc_greedy_decoder, output_length = fluid.layers.ctc_greedy_decoder(out, blank=train_parameters["class_dim"], input_length=image_length)
-        # logger.info("decoded output length:{}".format(output_length))
-        # print(np.array(output))
-        output = utils.greedy_decode(out.numpy(), blank=train_parameters["class_dim"],
-                                     input_length=image_length.numpy())
-        total = 0
-        right = 0
-        for y_p in zip(y_data, output):
-            y = y_p[0]
-            p = y_p[1]
-            y_s = "".join([train_parameters['r_label_dict'][c] for c in y])
-            p_s = "".join([train_parameters['r_label_dict'][c] for c in p])
-            # logger.info("pred:{} answer:{}".format(p_s, y_s))
-            if y_s == p_s:
-                right += 1
-            total += 1
-        logger.info("eval right ratio:{:.2%}".format(1.0 * right / total))
-        return 1.0 * right / total
+        # input_length = np.array([out.shape[1]] * out.shape[0]).astype("int64")
+        # input_length = fluid.dygraph.to_variable(input_length)
+        # input_length.stop_gradient = True
+        # outputctc_greedy_decoder, output_length = fluid.layers.ctc_greedy_decoder(out, blank=train_parameters["class_dim"], input_length=input_length)
+        # b = [x[:int(l)] for x,l in zip(outputctc_greedy_decoder.numpy(),output_length.numpy())]
+        cur_acc, cur_num = acc_batch(out.numpy(), y_data)
+        all_acc += cur_acc
+        all_num += cur_num
+    return 1.0 * all_acc / all_num
 
 
 def train():
@@ -88,36 +89,37 @@ def train():
             tic = time.time()
             for batch_id, data in enumerate(train_reader()):
                 dy_x_data = np.array([x[0] for x in data]).astype('float32')
-                image_length = np.array([x[1] for x in data]).astype('int64')
-                label_len = np.array([len(x[2]) for x in data]).astype('int64')
-                y_data = np.array([x[2] + [0] * (max_char_per_line - len(x[2])) for x in data]).astype("int32")
+                label_len = np.array([len(x[1]) for x in data]).astype('int64')
+                y_data = np.array([x[1] + [0] * (max_char_per_line - len(x[1])) for x in data]).astype("int32")
 
                 img = fluid.dygraph.to_variable(dy_x_data)
                 out = crnn(img)
 
                 label = fluid.dygraph.to_variable(y_data)
                 label_len = fluid.dygraph.to_variable(label_len)
-                image_length = fluid.dygraph.to_variable(image_length)
 
                 label.stop_gradient = True
                 label_len.stop_gradient = True
-                image_length.stop_gradient = True
 
-                out = fluid.layers.transpose(out, [1, 0, 2])
-                loss = fluid.layers.warpctc(input=out, label=label, input_length=image_length, label_length=label_len,
+                out_for_loss = fluid.layers.transpose(out, [1, 0, 2])
+                input_length = np.array([out.shape[1]] * out.shape[0]).astype("int64")
+                input_length = fluid.dygraph.to_variable(input_length)
+                input_length.stop_gradient = True
+                loss = fluid.layers.warpctc(input=out_for_loss, label=label, input_length=input_length, label_length=label_len,
                                             blank=train_parameters["class_dim"], norm_by_times=True)
                 avg_loss = fluid.layers.reduce_mean(loss)
 
+                cur_acc_num, cur_all_num = acc_batch(out.numpy(), [x[1] for x in data])
                 if batch_id % 20 == 0:
-                    # ratio = eval_model(crnn)
                     logger.info(
-                        "loss at epoch [{}/{}], step [{}/{}], loss: {:.6f}, time: {:.4f}".format(epoch, epoch_num,
-                                                                                                 batch_id,
-                                                                                                 batch_num,
-                                                                                                 avg_loss.numpy()[0],
-                                                                                                 time.time() - tic))
+                        "loss at epoch [{}/{}], step [{}/{}], loss: {:.6f}, acc: {:.4f}, lr: {}, time: {:.4f}".format(epoch, epoch_num,
+                                                                                                                      batch_id,
+                                                                                                                      batch_num,
+                                                                                                                      avg_loss.numpy()[0],
+                                                                                                                      cur_acc_num / cur_all_num,
+                                                                                                                      optimizer._learning_rate,
+                                                                                                                      time.time() - tic))
                     tic = time.time()
-
                 avg_loss.backward()
                 optimizer.minimize(avg_loss)
                 crnn.clear_gradients()
@@ -127,8 +129,7 @@ def train():
             if ratio >= current_best:
                 fluid.dygraph.save_dygraph(crnn.state_dict(), train_parameters['save_model_dir'])
                 current_best = ratio
-                logger.info("save model to {}, current best right ratio:{:.2%}"
-                            .format(train_parameters['save_model_dir'], ratio))
+                logger.info("save model to {}, current best right ratio:{:.2%}".format(train_parameters['save_model_dir'], ratio))
 
     logger.info("train end")
 

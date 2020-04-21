@@ -18,8 +18,6 @@ from config import train_parameters
 
 
 def infer(infer_path):
-    utils.logger.info("start infer")
-    config.init_train_parameters("infer")
     with fluid.dygraph.guard():
         params, _ = fluid.dygraph.load_dygraph(config.train_parameters['save_model_dir'])
         crnn = CRNN(train_parameters['model_name'], train_parameters["class_dim"])
