@@ -1,0 +1,24 @@
+2020-04-21 16:24:49,560 crnn.gluon INFO: logger init finished
+2020-04-21 16:24:49,595 crnn.gluon INFO: origin learning rate: 0.0001 boundaries: [24, 40, 56, 72]  values: [0.0001, 5e-05, 2.5e-05, 1e-05, 2.0000000000000003e-06]
+2020-04-21 16:24:49,738 crnn.gluon INFO: loss at epoch [0/80], step [0/2229], loss: 24.322008, time: 0.1394
+2020-04-21 16:24:54,391 crnn.gluon INFO: loss at epoch [0/80], step [20/2229], loss: 29.630688, time: 4.6529
+2020-04-21 16:25:06,667 crnn.gluon INFO: logger init finished
+2020-04-21 16:25:06,702 crnn.gluon INFO: origin learning rate: 0.0001 boundaries: [24, 40, 56, 72]  values: [0.0001, 5e-05, 2.5e-05, 1e-05, 2.0000000000000003e-06]
+2020-04-21 16:25:07,403 crnn.gluon INFO: loss at epoch [0/80], step [0/278], loss: 40.666946, time: 0.6972
+2020-04-21 16:25:36,346 crnn.gluon INFO: loss at epoch [0/80], step [20/278], loss: 27.877703, time: 28.9350
+2020-04-21 16:26:06,477 crnn.gluon INFO: loss at epoch [0/80], step [40/278], loss: 31.942636, time: 30.1303
+2020-04-21 16:26:37,181 crnn.gluon INFO: loss at epoch [0/80], step [60/278], loss: 29.733532, time: 30.7045
+2020-04-21 16:27:07,377 crnn.gluon INFO: loss at epoch [0/80], step [80/278], loss: 28.543369, time: 30.1951
+2020-04-21 16:27:38,148 crnn.gluon INFO: loss at epoch [0/80], step [100/278], loss: 28.692238, time: 30.7707
+2020-04-21 16:28:08,472 crnn.gluon INFO: loss at epoch [0/80], step [120/278], loss: 36.914585, time: 30.3244
+2020-04-21 16:28:38,855 crnn.gluon INFO: loss at epoch [0/80], step [140/278], loss: 23.382814, time: 30.3829
+2020-04-21 16:29:08,804 crnn.gluon INFO: loss at epoch [0/80], step [160/278], loss: 27.818958, time: 29.9485
+2020-04-21 17:04:19,566 crnn.gluon INFO: logger init finished
+2020-04-21 17:04:45,036 crnn.gluon INFO: logger init finished
+2020-04-21 17:04:45,929 crnn.gluon INFO: loss at epoch [0/80], step [0/278], loss: 29.019466, time: 0.7968
+2020-04-21 17:11:15,288 crnn.gluon INFO: logger init finished
+2020-04-21 17:11:21,323 crnn.gluon INFO: start to eval
+2020-04-21 17:17:07,059 crnn.gluon INFO: logger init finished
+2020-04-21 17:17:08,068 crnn.gluon INFO: start to eval
+2020-04-21 17:19:06,708 crnn.gluon INFO: logger init finished
+2020-04-21 17:19:07,644 crnn.gluon INFO: start to eval
