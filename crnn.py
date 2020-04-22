@@ -198,7 +198,7 @@ class GRUDecoderWithAttention(fluid.dygraph.Layer):
 class OCRAttention(fluid.dygraph.Layer):
     def __init__(self, batch_size, num_classes, encoder_size, decoder_size, word_vector_dim):
         super(OCRAttention, self).__init__()
-        self.encoder_net = CRNN(batch_size, decoder_size)
+        self.encoder_net = CRNN(decoder_size,batch_size)
         self.fc = Linear(input_dim=encoder_size, output_dim=decoder_size, bias_attr=False, act='relu')
         self.embedding = Embedding([num_classes + 2, word_vector_dim], dtype='float32')
         self.gru_decoder_with_attention = GRUDecoderWithAttention(encoder_size, decoder_size, num_classes)

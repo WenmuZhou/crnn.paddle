@@ -17,7 +17,7 @@ import os
 
 os.environ["FLAGS_fraction_of_gpu_memory_to_use"] = '0.82'
 
-logger = setup_logger('train.log')
+logger = setup_logger(os.path.join(train_parameters['save_model_dir'], 'train.log'))
 
 
 def acc_batch(preds, labels):
@@ -64,22 +64,31 @@ def train():
     epoch_num = train_parameters["num_epochs"]
     batch_size = train_parameters["train_batch_size"]
 
-    with fluid.dygraph.guard():
-        crnn = CRNN(train_parameters["class_dim"] + 1, batch_size=batch_size)
-        optimizer = fluid.optimizer.Adam(learning_rate=train_parameters['learning_rate'],
-                                         parameter_list=crnn.parameters())
-
+    place = fluid.CUDAPlace(0) if fluid.is_compiled_with_cuda() else fluid.CPUPlace()
+    logger.info('train with {}'.format(place))
+    with fluid.dygraph.guard(place):
         # 数据加载
         file_list = open(train_parameters['train_list']).readlines()
         # file_list = [x.replace('D:/', '/mnt/d/') for x in file_list]
         temp_reader = reader.custom_reader(file_list, train_parameters['input_size'], 'train')
-        train_reader = paddle.batch(temp_reader, batch_size=batch_size)
+        train_reader = paddle.batch(paddle.reader.shuffle(temp_reader, buf_size=50000),
+                                    batch_size=train_parameters['train_batch_size'])
 
         batch_num = len(file_list) // batch_size
+
+        crnn = CRNN(train_parameters["class_dim"] + 1, batch_size=batch_size)
+        total_step = batch_num * epoch_num
+        LR = train_parameters['learning_rate']
+        # lr = fluid.layers.polynomial_decay(train_parameters['learning_rate'], batch_num * epoch_num, 1e-7, power=0.9)
+        lr = fluid.layers.piecewise_decay([total_step // 4, total_step // 2, total_step * 3 // 4],
+                                          [LR, LR * 0.1, LR * 0.01, LR * 0.001])
+        optimizer = fluid.optimizer.Adam(learning_rate=lr, parameter_list=crnn.parameters())
+
         if train_parameters["continue_train"]:
             # 加载上一次训练的模型，继续训练
-            model, _ = fluid.dygraph.load_dygraph(train_parameters['save_model_dir'])
-            crnn.load_dict(model)
+            params_dict, opt_dict = fluid.load_dygraph('{}/crnn_latest'.format(train_parameters['save_model_dir']))
+            crnn.set_dict(params_dict)
+            optimizer.set_dict(opt_dict)
             logger.info("load model from {}".format(train_parameters['save_model_dir']))
 
         max_char_per_line = train_parameters['max_char_per_line']
@@ -110,24 +119,27 @@ def train():
                 avg_loss = fluid.layers.reduce_mean(loss)
 
                 cur_acc_num, cur_all_num = acc_batch(out.numpy(), [x[1] for x in data])
-                if batch_id % 20 == 0:
+                if batch_id % 1 == 0:
                     logger.info(
-                        "loss at epoch [{}/{}], step [{}/{}], loss: {:.6f}, acc: {:.4f}, lr: {}, time: {:.4f}".format(epoch, epoch_num,
-                                                                                                                      batch_id,
-                                                                                                                      batch_num,
-                                                                                                                      avg_loss.numpy()[0],
-                                                                                                                      cur_acc_num / cur_all_num,
-                                                                                                                      optimizer._learning_rate,
-                                                                                                                      time.time() - tic))
+                        "epoch [{}/{}], step [{}/{}], loss: {:.6f}, acc: {:.4f}, lr: {}, time: {:.4f}".format(epoch, epoch_num,
+                                                                                                              batch_id,
+                                                                                                              batch_num,
+                                                                                                              avg_loss.numpy()[0],
+                                                                                                              cur_acc_num / cur_all_num,
+                                                                                                              optimizer.current_step_lr(),
+                                                                                                              time.time() - tic))
                     tic = time.time()
                 avg_loss.backward()
                 optimizer.minimize(avg_loss)
                 crnn.clear_gradients()
 
+            fluid.save_dygraph(crnn.state_dict(), '{}/crnn_latest'.format(train_parameters['save_model_dir']))
+            fluid.save_dygraph(optimizer.state_dict(), '{}/crnn_latest'.format(train_parameters['save_model_dir']))
             crnn.eval()
             ratio = eval_model(crnn)
             if ratio >= current_best:
-                fluid.dygraph.save_dygraph(crnn.state_dict(), train_parameters['save_model_dir'])
+                fluid.save_dygraph(crnn.state_dict(), '{}/crnn_best'.format(train_parameters['save_model_dir']))
+                fluid.save_dygraph(optimizer.state_dict(), '{}/crnn_best'.format(train_parameters['save_model_dir']))
                 current_best = ratio
                 logger.info("save model to {}, current best right ratio:{:.2%}".format(train_parameters['save_model_dir'], ratio))
 

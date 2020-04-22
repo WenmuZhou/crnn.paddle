@@ -4,10 +4,6 @@
 @author: zhoujun
 @time: 2020/4/21 下午10:01
 '''
-
-# -*- coding: utf-8 -*-
-# @Time    : 2018/8/24 10:20
-# @Author  : zhoujun
 import os
 import sys
 import pathlib

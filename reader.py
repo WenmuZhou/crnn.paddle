@@ -145,15 +145,13 @@ def custom_reader(file_list, input_size, mode):
             image_path = parts[0]
             image_path = image_path + 'jpg'
             if not os.path.exists(image_path):
-                print('文件不存在',image_path)
+                print('文件不存在', image_path)
                 continue
             img = Image.open(image_path)
             if img.mode != 'RGB':
                 img = img.convert('RGB')
-            try:
-                label = [int(train_parameters['label_dict'][c]) for c in parts[-1].replace('\t','').replace(' ','') if c != '´']
-            except:
-                a = 1
+            label = [int(train_parameters['label_dict'][c]) for c in parts[-1].replace('\t', '').replace(' ', '') if
+                     c != '´']
             if len(label) == 0 or len(label) >= train_parameters['max_char_per_line']:
                 continue
             if mode == 'train':
@@ -166,11 +164,32 @@ def custom_reader(file_list, input_size, mode):
             img = img[np.newaxis, ...]
             # print("{0} {1}".format(image_path, label))
             yield img, label
+
     return reader
 
+
 if __name__ == '__main__':
-    file_list = open(train_parameters['train_list']).readlines()
-    temp_reader = custom_reader(file_list, train_parameters['input_size'], 'train')
-    for data in temp_reader():
-        print(data[1])
-        a = 1
+    from paddle import fluid
+
+    total_step = 30
+    LR = 0.001
+    with fluid.dygraph.guard():
+        # lr = fluid.layers.piecewise_decay([10,20], [LR, LR * 0.1, LR * 0.01])
+        lr = fluid.layers.polynomial_decay(LR,total_step,1e-7,power=0.9)
+        from crnn import CRNN
+
+        crnn = CRNN(train_parameters["class_dim"] + 1, batch_size=16)
+        optimizer = fluid.optimizer.Adam(learning_rate=lr, parameter_list=crnn.parameters())
+        step = []
+        lr = []
+        for x in range(total_step):
+            step.append(x)
+            l = fluid.dygraph.to_variable(np.array([1]))
+            optimizer.minimize(l)
+            lr.append(optimizer.current_step_lr())
+            print(x,optimizer.current_step_lr())
+
+        from matplotlib import pyplot as plt
+
+        plt.plot(step, lr)
+        plt.show()
