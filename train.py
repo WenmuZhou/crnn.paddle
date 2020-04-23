@@ -4,9 +4,8 @@
 """
 import paddle.fluid as fluid
 import paddle
-import math
 import time
-import reader
+from dataset import get_loader
 import numpy as np
 import utils
 from utils import setup_logger
@@ -34,12 +33,12 @@ def acc_batch(preds, labels):
     return right, total
 
 
-def eval_model(crnn):
+def eval_model(crnn, place):
     logger.info("start to eval")
     file_list = open(train_parameters['eval_list']).readlines()
-    # file_list = [x.replace('D:/', '/mnt/d/') for x in file_list]
-    temp_reader = reader.custom_reader(file_list, train_parameters['input_size'], 'eval')
-    eval_reader = paddle.batch(temp_reader, batch_size=train_parameters['eval_batch_size'])
+    eval_reader = get_loader(file_list=file_list, input_size=train_parameters['input_size'], max_char_per_line=train_parameters['max_char_per_line'],
+                             mean_color=train_parameters['mean_color'], batch_size=train_parameters['eval_batch_size'],
+                             label_dict=train_parameters['label_dict'], mode='eval', place=place)
 
     all_acc = 0
     all_num = 0
@@ -69,10 +68,9 @@ def train():
     with fluid.dygraph.guard(place):
         # 数据加载
         file_list = open(train_parameters['train_list']).readlines()
-        # file_list = [x.replace('D:/', '/mnt/d/') for x in file_list]
-        temp_reader = reader.custom_reader(file_list, train_parameters['input_size'], 'train')
-        train_reader = paddle.batch(paddle.reader.shuffle(temp_reader, buf_size=50000),
-                                    batch_size=train_parameters['train_batch_size'])
+        train_reader = get_loader(file_list=file_list, input_size=train_parameters['input_size'], max_char_per_line=train_parameters['max_char_per_line'],
+                                  mean_color=train_parameters['mean_color'], batch_size=train_parameters['train_batch_size'], mode='train',
+                                  label_dict=train_parameters['label_dict'], place=place)
 
         batch_num = len(file_list) // batch_size
 
@@ -80,8 +78,7 @@ def train():
         total_step = batch_num * epoch_num
         LR = train_parameters['learning_rate']
         # lr = fluid.layers.polynomial_decay(train_parameters['learning_rate'], batch_num * epoch_num, 1e-7, power=0.9)
-        lr = fluid.layers.piecewise_decay([total_step // 4, total_step // 2, total_step * 3 // 4],
-                                          [LR, LR * 0.1, LR * 0.01, LR * 0.001])
+        lr = fluid.layers.piecewise_decay([total_step // 3, total_step * 2 // 3], [LR, LR * 0.1, LR * 0.01])
         optimizer = fluid.optimizer.Adam(learning_rate=lr, parameter_list=crnn.parameters())
 
         if train_parameters["continue_train"]:
@@ -102,6 +99,7 @@ def train():
                 y_data = np.array([x[1] + [0] * (max_char_per_line - len(x[1])) for x in data]).astype("int32")
 
                 img = fluid.dygraph.to_variable(dy_x_data)
+                # (img, label, label_len) = data
                 out = crnn(img)
 
                 label = fluid.dygraph.to_variable(y_data)
@@ -136,7 +134,7 @@ def train():
             fluid.save_dygraph(crnn.state_dict(), '{}/crnn_latest'.format(train_parameters['save_model_dir']))
             fluid.save_dygraph(optimizer.state_dict(), '{}/crnn_latest'.format(train_parameters['save_model_dir']))
             crnn.eval()
-            ratio = eval_model(crnn)
+            ratio = eval_model(crnn, place=place)
             if ratio >= current_best:
                 fluid.save_dygraph(crnn.state_dict(), '{}/crnn_best'.format(train_parameters['save_model_dir']))
                 fluid.save_dygraph(optimizer.state_dict(), '{}/crnn_best'.format(train_parameters['save_model_dir']))

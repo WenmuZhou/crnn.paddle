@@ -10,7 +10,7 @@ from tqdm import tqdm
 import os
 from paddle.fluid.dygraph import TracedLayer
 
-from reader import resize_img
+from dataset.reader import resize_img
 from crnn import CRNN
 from config import train_parameters
 
@@ -19,7 +19,7 @@ def precess_img(img_path):
     img = Image.open(img_path)
     if img.mode != 'RGB':
         img = img.convert('RGB')
-    img, img_length = resize_img(img, train_parameters['input_size'])
+    img = resize_img(img, train_parameters['input_size'])
     img = img.convert('L')
     img = np.array(img).astype('float32') - train_parameters['mean_color']
     img = img[np.newaxis, ...]
@@ -32,9 +32,10 @@ def infer(files, save_static_path=None):
     place = fluid.CUDAPlace(0) if fluid.is_compiled_with_cuda() else fluid.CPUPlace()
     print('train with {}'.format(place))
     with fluid.dygraph.guard(place):
-        # params, _ = fluid.load_dygraph('{}/crnn_latest'.format(train_parameters['save_model_dir']))
-        crnn = CRNN(train_parameters["class_dim"] + 1, 1)
-        # crnn.load_dict(params)
+        params, _ = fluid.load_dygraph('{}/crnn_best'.format('output/baidu_model'))#train_parameters['save_model_dir']))
+        # crnn = CRNN(train_parameters["class_dim"] + 1, 1)
+        crnn = CRNN(3828, 1)
+        crnn.load_dict(params)
         crnn.eval()
         for file in tqdm(files):
             img = precess_img(file)
@@ -72,11 +73,11 @@ if __name__ == "__main__":
     # image_path = sys.argv[1]
     from utils import save
 
-    # files = ['D:/dataset/data/val/0_song5_0_3.jpg']
-    files = [os.path.join('/home/aistudio/data/data10879', 'test_images', file) for file in
-             os.listdir(os.path.join('/home/aistudio/data/data10879', 'test_images')) if file.endswith('.jpg')]
-    save_static_path = './saved_infer_model'
+    files = ['D:/dataset/data/val/0_song5_0_3.jpg'] # gt is oco9w
+    # files = [os.path.join('/home/aistudio/data/data10879', 'test_images', file) for file in
+    #          os.listdir(os.path.join('/home/aistudio/data/data10879', 'test_images')) if file.endswith('.jpg')]
+    save_static_path = None#'./saved_infer_model'
     result_list = infer(files, save_static_path)
-    result_list = static_infer(files, save_static_path)
-    save(result_list, 'predict.txt')
-    # print(result_list)
+    # result_list = static_infer(files, save_static_path)
+    # save(result_list, 'predict.txt')
+    print(result_list)
