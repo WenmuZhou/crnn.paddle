@@ -8,8 +8,8 @@ from utils import load
 train_parameters = {
     "model_name": "crnn",
     "input_size": [1, 48, 512],
-    "train_list": r"/home/zj/桌面/ocr_simple_dataset/train.txt",
-    "eval_list": r"//ome/zj/桌面/ocr_simple_dataset/val.txt",
+    "train_list": r"/mnt/d/dataset/ocr_simple_dataset/train.txt",
+    "eval_list": r"/mnt/d/dataset/ocr_simple_dataset/val.txt",
     "max_char_per_line": 24,
     "label_list": load('dict.txt'),
     "class_dim": -1,

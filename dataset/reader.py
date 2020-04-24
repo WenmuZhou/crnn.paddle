@@ -194,37 +194,37 @@ def custom_reader1():
     return reader
 
 if __name__ == '__main__':
-    # from paddle import fluid
+    from paddle import fluid
 
-    # total_step = 30
-    # LR = 0.001
-    # with fluid.dygraph.guard():
-    #     lr = fluid.layers.piecewise_decay([total_step // 3, total_step * 2 // 3], [LR, LR * 0.1, LR * 0.01])
-    #     # lr = fluid.layers.polynomial_decay(LR,total_step,1e-7,power=0.9)
-    #     from crnn import CRNN
+    total_step = 30
+    LR = 1e-3
+    with fluid.dygraph.guard():
+        lr = fluid.layers.piecewise_decay([total_step // 3, total_step * 2 // 3], [LR, LR * 0.1, LR * 0.01])
+        # lr = fluid.layers.polynomial_decay(LR,total_step,1e-7,power=0.9)
+        from crnn import CRNN
 
-    #     crnn = CRNN(train_parameters["class_dim"] + 1, batch_size=16)
-    #     optimizer = fluid.optimizer.Adam(learning_rate=lr, parameter_list=crnn.parameters())
-    #     step = []
-    #     lr = []
-    #     for x in range(total_step):
-    #         step.append(x)
-    #         l = fluid.dygraph.to_variable(np.array([1]))
-    #         optimizer.minimize(l)
-    #         lr.append(optimizer.current_step_lr())
-    #         print(x,optimizer.current_step_lr())
+        crnn = CRNN(train_parameters["class_dim"] + 1, batch_size=16)
+        optimizer = fluid.optimizer.Adam(learning_rate=lr, parameter_list=crnn.parameters())
+        step = []
+        lr = []
+        for x in range(total_step):
+            step.append(x)
+            l = fluid.dygraph.to_variable(np.array([1]))
+            optimizer.minimize(l)
+            lr.append(optimizer.current_step_lr())
+            print(x,optimizer.current_step_lr())
 
-    #     from matplotlib import pyplot as plt
+        from matplotlib import pyplot as plt
 
-    #     plt.plot(step, lr)
-    #     plt.show()
-    import paddle
-    temp_reader = custom_reader1()
-    train_reader = paddle.batch(temp_reader,
-                                    batch_size=128)
-    import time
-    tic = time.time()
-    for i, data in enumerate(train_reader()):
-        if (i+1) % 100 == 0:
-            print(time.time()-tic,len(data),i)
-            tic = time.time()
+        plt.plot(step, lr)
+        plt.show()
+    # import paddle
+    # temp_reader = custom_reader1()
+    # train_reader = paddle.batch(temp_reader,
+    #                                 batch_size=128)
+    # import time
+    # tic = time.time()
+    # for i, data in enumerate(train_reader()):
+    #     if (i+1) % 100 == 0:
+    #         print(time.time()-tic,len(data),i)
+    #         tic = time.time()

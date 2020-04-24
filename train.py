@@ -4,6 +4,7 @@
 """
 import paddle.fluid as fluid
 import time
+from tqdm import tqdm
 from dataset import get_loader
 import numpy as np
 from utils import setup_logger, greedy_decode, save, load
@@ -40,7 +41,7 @@ def eval_model(crnn, place):
 
     all_acc = 0
     all_num = 0
-    for batch_id, (img, label, label_len) in enumerate(eval_reader()):
+    for batch_id, (img, label, label_len) in tqdm(enumerate(eval_reader()),total=len(eval_reader())):
         out = crnn(img)
         cur_acc, cur_num = acc_batch(out.numpy(), label.numpy())
         all_acc += cur_acc
@@ -61,13 +62,13 @@ def train():
                                   mean_color=train_parameters['mean_color'], batch_size=train_parameters['train_batch_size'], mode='train',
                                   label_dict=train_parameters['label_dict'], place=place)
 
-        batch_num = len(file_list) // batch_size
+        batch_num = len(train_reader())
 
         crnn = CRNN(train_parameters["class_dim"] + 1, batch_size=batch_size)
         total_step = batch_num * epoch_num
         LR = train_parameters['learning_rate']
-        # lr = fluid.layers.polynomial_decay(train_parameters['learning_rate'], batch_num * epoch_num, 1e-7, power=0.9)
-        lr = fluid.layers.piecewise_decay([total_step // 3, total_step * 2 // 3], [LR, LR * 0.1, LR * 0.01])
+        lr = fluid.layers.polynomial_decay(LR, total_step, 1e-7, power=0.9)
+        # lr = fluid.layers.piecewise_decay([total_step // 3, total_step * 2 // 3], [LR, LR * 0.1, LR * 0.01])
         optimizer = fluid.optimizer.Adam(learning_rate=lr, parameter_list=crnn.parameters())
 
         if train_parameters["continue_train"]:
@@ -89,7 +90,7 @@ def train():
                 input_length = np.array([out.shape[1]] * out.shape[0]).astype("int64")
                 input_length = fluid.dygraph.to_variable(input_length)
                 input_length.stop_gradient = True
-                loss = fluid.layers.warpctc(input=out_for_loss, label=label, input_length=input_length, label_length=label_len,
+                loss = fluid.layers.warpctc(input=out_for_loss, label=label.astype(np.int32), input_length=input_length, label_length=label_len,
                                             blank=train_parameters["class_dim"], norm_by_times=True)
                 avg_loss = fluid.layers.reduce_mean(loss)
 
@@ -116,7 +117,7 @@ def train():
                 fluid.save_dygraph(crnn.state_dict(), '{}/crnn_best'.format(train_parameters['save_model_dir']))
                 fluid.save_dygraph(optimizer.state_dict(), '{}/crnn_best'.format(train_parameters['save_model_dir']))
                 current_best = ratio
-                logger.info("save model to {}, current best right ratio:{:.2%}".format(train_parameters['save_model_dir'], ratio))
+                logger.info("save model to {}, current best acc:{:.2f}".format(train_parameters['save_model_dir'], ratio))
     logger.info("train end")
 
 

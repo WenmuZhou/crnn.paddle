@@ -10,7 +10,7 @@ from tqdm import tqdm
 import os
 from paddle.fluid.dygraph import TracedLayer
 
-from dataset.reader import resize_img
+from dataset.reader import resize_img_baseline
 from crnn import CRNN
 from config import train_parameters
 
@@ -19,7 +19,7 @@ def precess_img(img_path):
     img = Image.open(img_path)
     if img.mode != 'RGB':
         img = img.convert('RGB')
-    img = resize_img(img, train_parameters['input_size'])
+    img = resize_img_baseline(img, train_parameters['input_size'])
     img = img.convert('L')
     img = np.array(img).astype('float32') - train_parameters['mean_color']
     img = img[np.newaxis, ...]
