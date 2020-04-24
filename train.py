@@ -3,12 +3,10 @@
 训练常基于CRNN的网络，文字识别
 """
 import paddle.fluid as fluid
-import paddle
 import time
 from dataset import get_loader
 import numpy as np
-import utils
-from utils import setup_logger
+from utils import setup_logger, greedy_decode, save, load
 from config import train_parameters
 from crnn import CRNN
 
@@ -20,13 +18,13 @@ logger = setup_logger(os.path.join(train_parameters['save_model_dir'], 'train.lo
 
 
 def acc_batch(preds, labels):
-    output = utils.greedy_decode(preds, blank=train_parameters["class_dim"])
+    labels = [x[:np.where(x == -1)[0][0]] for x in labels]
+    output = greedy_decode(preds, blank=train_parameters["class_dim"])
     total = 0
     right = 0
     for y, p in zip(labels, output):
         y_s = "".join([train_parameters['r_label_dict'][c] for c in y])
         p_s = "".join([train_parameters['r_label_dict'][c] for c in p])
-        # logger.info("pred:{} answer:{}".format(p_s, y_s))
         if y_s == p_s:
             right += 1
         total += 1
@@ -42,18 +40,9 @@ def eval_model(crnn, place):
 
     all_acc = 0
     all_num = 0
-    for batch_id, data in enumerate(eval_reader()):
-        dy_x_data = np.array([x[0] for x in data]).astype('float32')
-        y_data = [x[1] for x in data]
-
-        img = fluid.dygraph.to_variable(dy_x_data)
+    for batch_id, (img, label, label_len) in enumerate(eval_reader()):
         out = crnn(img)
-        # input_length = np.array([out.shape[1]] * out.shape[0]).astype("int64")
-        # input_length = fluid.dygraph.to_variable(input_length)
-        # input_length.stop_gradient = True
-        # outputctc_greedy_decoder, output_length = fluid.layers.ctc_greedy_decoder(out, blank=train_parameters["class_dim"], input_length=input_length)
-        # b = [x[:int(l)] for x,l in zip(outputctc_greedy_decoder.numpy(),output_length.numpy())]
-        cur_acc, cur_num = acc_batch(out.numpy(), y_data)
+        cur_acc, cur_num = acc_batch(out.numpy(), label.numpy())
         all_acc += cur_acc
         all_num += cur_num
     return 1.0 * all_acc / all_num
@@ -88,25 +77,13 @@ def train():
             optimizer.set_dict(opt_dict)
             logger.info("load model from {}".format(train_parameters['save_model_dir']))
 
-        max_char_per_line = train_parameters['max_char_per_line']
         current_best = -1
-        for epoch in range(epoch_num):
+        start_epoch = 0
+        for epoch in range(start_epoch, epoch_num):
             crnn.train()
             tic = time.time()
-            for batch_id, data in enumerate(train_reader()):
-                dy_x_data = np.array([x[0] for x in data]).astype('float32')
-                label_len = np.array([len(x[1]) for x in data]).astype('int64')
-                y_data = np.array([x[1] + [0] * (max_char_per_line - len(x[1])) for x in data]).astype("int32")
-
-                img = fluid.dygraph.to_variable(dy_x_data)
-                # (img, label, label_len) = data
+            for batch_id, (img, label, label_len) in enumerate(train_reader()):
                 out = crnn(img)
-
-                label = fluid.dygraph.to_variable(y_data)
-                label_len = fluid.dygraph.to_variable(label_len)
-
-                label.stop_gradient = True
-                label_len.stop_gradient = True
 
                 out_for_loss = fluid.layers.transpose(out, [1, 0, 2])
                 input_length = np.array([out.shape[1]] * out.shape[0]).astype("int64")
@@ -116,7 +93,7 @@ def train():
                                             blank=train_parameters["class_dim"], norm_by_times=True)
                 avg_loss = fluid.layers.reduce_mean(loss)
 
-                cur_acc_num, cur_all_num = acc_batch(out.numpy(), [x[1] for x in data])
+                cur_acc_num, cur_all_num = acc_batch(out.numpy(), label.numpy())
                 if batch_id % 1 == 0:
                     logger.info(
                         "epoch [{}/{}], step [{}/{}], loss: {:.6f}, acc: {:.4f}, lr: {}, time: {:.4f}".format(epoch, epoch_num,
@@ -140,7 +117,6 @@ def train():
                 fluid.save_dygraph(optimizer.state_dict(), '{}/crnn_best'.format(train_parameters['save_model_dir']))
                 current_best = ratio
                 logger.info("save model to {}, current best right ratio:{:.2%}".format(train_parameters['save_model_dir'], ratio))
-
     logger.info("train end")
 
 

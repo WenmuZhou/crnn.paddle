@@ -7,7 +7,7 @@ import numpy as np
 def get_loader(**kwargs):
     import paddle
     if paddle.__version__ == '0.0.0' or paddle.__version__ >= '2.0.0':
-        return pd_loader(**kwargs)
+        return torch_loader(**kwargs)
     else:
         return pd_loader(**kwargs)
     pass
