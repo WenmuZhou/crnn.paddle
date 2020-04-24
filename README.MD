@@ -7,7 +7,6 @@ Origin software could be found in [crnn](https://github.com/bgshih/crnn)
 
 ## Requirements
 * padddlepaddle 2.0+
-* mxboard
 
 ## Data Preparation
 Prepare a text in the following format
