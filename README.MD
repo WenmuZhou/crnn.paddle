@@ -16,7 +16,7 @@ Prepare a text in the following format
 ```
 
 ## Train
-1. config the `dataset['train']['dataset']['data_path']`,`dataset['validate']['dataset']['data_path']` in [config.yaml](config/icdar2015.yaml)
+1. config the `train_list` and `eval_list` in [config.py](config.py)
 2. generate alphabet
 use fellow script to generate `dict.txt` in the some folder with `train.py` 
 ```sh
